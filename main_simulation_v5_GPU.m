@@ -1,18 +1,12 @@
 %% main_simulation_v5_GPU.m
-% Master script to reproduce all figures from:
-% "RIS-aided System Channel Estimation using Neural Networks"
-%
+
 % **v5 GPU-OPTIMIZED VERSION**
 %   - Integrates v5 aggressive weighting for Figure 4 (9x replication at 35dB for N=64)
 %   - GPU-optimized parameters: batch=512, LR=2e-3, reduced samples for 4-5x speedup
-%   - Requires: prepare_weighted_training_data_v5.m, nn_dataset_generator.m, nn_predict_angles.m
 %
 % ROBUSTNESS FEATURES:
 %   - SIM_MODE: 'fast' (quick validation) or 'slow' 
-%   - FORCE_RESTART: set true to ignore all checkpoints
-%   - Checkpointing: saves progress after every iteration to checkpoints/
-%   - try-catch: errors are logged but don't abort the simulation
-%   - log_msg: timestamped progress messages in terminal
+
 
 clear; clc; close all;
 
@@ -86,8 +80,7 @@ d_k_set   = [5 10 15 20 25]; % [m]
 alpha_PL  = 2.2;
 
 %% NN architecture parameters
-% These match the optimized_nn_training settings that produced the best
-% results in final_verification_test.m (closest NN curve to LS-DC).
+
 numHiddenUnits  = 128;   % 128 units per layer (was 8)
 numHiddenLayers = 4;     % 4 hidden layers (was 3)
 actFcnHidden    = 'tanh';
@@ -97,8 +90,7 @@ actFcnHidden    = 'tanh';
 % automatically once you retrain with the fixed generator.
 
 % NOTE: make_train_opts is defined as a local function at the bottom of
-% this file. MATLAB requires all local functions to appear after the last
-% line of script code, which is why it is placed there.
+% this file.
 
 %% ======================================================================
 %% FIGURE 3(a): MSE vs Dataset Size
@@ -154,20 +146,7 @@ for itRatio = 1:numel(trainRatios)
                 numHiddenUnits, numHiddenLayers);
             net = trainNetwork(XTrain, YTrain, layers, opts);
 
-            % Re-build raw observations for the validation set so we can
-            % use nn_predict_angles (which applies the correct 2-stage
-            % normalisation).  We store X_raw alongside X in the dataset
-            % by reversing the global normalisation: x_raw = x*X_std + X_mean.
-            % This gives the [phase_vec | log_power] features, which is
-            % the correct input to nn_predict_angles when it applies the
-            % global step internally.
-            % NOTE: nn_predict_angles expects [Re(y_act) Im(y_act)] (raw),
-            % so we de-normalise XVal back to the intermediate feature space
-            % and pass it.  The simplest approach is to predict directly
-            % since XVal is already in the correct normalised form.
-            YPred = predict(net, XVal);
-            % Denormalize to angle domain before computing MSE
-            % so the MSE is in radians^2 (matches the paper axis)
+            
             u_pred = YPred(:,1)*u_std + u_mean;
             v_pred = YPred(:,2)*v_std + v_mean;
             u_val  = YVal(:,1) *u_std + u_mean;
@@ -475,7 +454,7 @@ else
     NMSE_NN_dB = nan(numel(N_vec), numel(SNR_dB_vec));
 end
 
-% Train ONE MLP-NN per N value using ALL SNRs (matching the paper approach)
+% Train ONE MLP-NN per N value using ALL SNRs
 for iN = 1:numel(N_vec)
     N = N_vec(iN);
 
@@ -666,16 +645,11 @@ log_msg('Checkpoints saved in: %s', ckptDir);
 disp(' ');
 disp('All simulations completed. Figures saved in the "figures" folder.');
 
-%% ======================================================================
-%% LOCAL HELPER FUNCTIONS
-%% (must appear after all script code in MATLAB)
-%% ======================================================================
+
 
 function opts = make_train_opts(maxEpochs, batchSz, lr, dropPer, dropFac, ...
                                 valData, execEnv)
-%MAKE_TRAIN_OPTS Build trainingOptions with piecewise LR schedule.
-%   FIX vs original: the old trainOptionsTemplate had no LR schedule, which
-%   caused slow/poor convergence on mixed-SNR data.  This helper is called
+%MAKE_TRAIN_OPTS  This helper is called
 %   by every training block so the schedule is always applied consistently.
     opts = trainingOptions('adam', ...
         'MaxEpochs',           maxEpochs, ...
